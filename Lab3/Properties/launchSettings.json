@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "Lab3": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "botToken": "6622826192:AAGEmaFZVaROLZYt67eTDUOg4sEmAkr1nxY"
+      }
+    }
+  }
+}
