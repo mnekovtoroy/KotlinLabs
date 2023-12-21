@@ -39,63 +39,96 @@ namespace Lab3
 
         public static void HandleCommand(long chatId, string message, ITelegramBotClient client)
         {
-            if (message.StartsWith("/start"))
+            bool isPresent = Database.IsPresent(chatId);
+            ConversationState state = isPresent ? ConversationState.OngoingConversation : ConversationState.NewConversation;
+            
+            if(state == ConversationState.NewConversation)
             {
-                StartCommand(chatId, client);
+                if(message.StartsWith("/setgroup "))
+                {
+                    var m_parts = message.Split(' ');
+                    if (m_parts.Length < 2)
+                        throw new ArgumentException("Ошибка: нехватка аргументов в команде");
+                    string m_group = m_parts[1];
+                    string m_pattern = @"^\d{4}$";
+                    if (!Regex.IsMatch(m_group, m_pattern))
+                        throw new ArgumentException("Ошибка: номер группы должен состоять из 4х цифр.");
+                    SetGroupCommandAsync(chatId, m_group, client);
+                    HelpCommand(chatId, client);
+                    return;
+                } else
+                {
+                    client.SendTextMessageAsync(
+                        chatId: chatId,
+                        text: "Пожалуйста, введите номер группы, используя /setgroup {group}");
+                    return;
+                }
+            }
+
+
+            if (message.StartsWith("/help"))
+            {
+                HelpCommand(chatId, client);
                 return;
             }
-            if(!(message.StartsWith("/nextlesson ") ||
-                message.StartsWith("/tomorrow ") ||
-                message.StartsWith("/week ") ||
-                message.StartsWith("/day "))) {
+            if(!(message.StartsWith("/nextlesson") ||
+                message.StartsWith("/tomorrow") ||
+                message.StartsWith("/week") ||
+                message.StartsWith("/day") ||
+                message.StartsWith("/updategroup "))) {
                 throw new ArgumentException("Неизвестная команда! Повторите попытку.");
             }
 
-
-            var parts = message.Split(' ');
-            if (parts.Length < 2)
-                throw new ArgumentException("Ошибка: нехватка аргументов в команде");
-
-            string command = parts[0];
-            string group = parts[1];
+            string group = Database.SelectGroup(chatId);
             string pattern = @"^\d{4}$";
             if (!Regex.IsMatch(group, pattern))
                 throw new ArgumentException("Ошибка: номер группы должен состоять из 4х цифр.");
 
 
-            if (command == "/nextlesson")
+            if (message.StartsWith("/nextlesson"))
             {
                 NextLessonCommandAsync(chatId, group, client);
             }
-            else if (command == "/tomorrow")
+            else if (message.StartsWith("/tomorrow"))
             {
                 TomorrowCommandAsync(chatId, group, client);
             }
-            else if (command == "/week")
+            else if (message.StartsWith("/week"))
             {
                 WeekCommandAsync(chatId, group, client);
             }
-            else if (command == "/day")
+            else if (message.StartsWith("/day"))
             {
                 int day;
-                if (parts.Count() < 3 || !int.TryParse(parts[2], out day) || day > 7 || day < 1)
+                if (message.Split(' ').Count() < 2 || !int.TryParse(message.Split(' ')[1], out day) || day > 7 || day < 1)
                 {
                     throw new ArgumentException("Ошибка в аргументе {day_number}: аргумент либо отсутсвует, либо не находится в пределах от 1 до 7.");
                 }
                 DayCommandAsync(chatId, group, day - 1, client);
+            } else if(message.StartsWith("/updategroup "))
+            {
+                var m_parts = message.Split(' ');
+                if (m_parts.Length < 2)
+                    throw new ArgumentException("Ошибка: нехватка аргументов в команде");
+                string m_group = m_parts[1];
+                string m_pattern = @"^\d{4}$";
+                if (!Regex.IsMatch(m_group, m_pattern))
+                    throw new ArgumentException("Ошибка: номер группы должен состоять из 4х цифр.");
+                UpdateGroupCommandAsync(chatId, m_group, client);
             }
         }
 
-        public static void StartCommand(long chatId, ITelegramBotClient client)
+        public static void HelpCommand(long chatId, ITelegramBotClient client)
         {
             client.SendTextMessageAsync(
                 chatId: chatId,
-                text: "Добро пожаловать в бота!\n" +
-                "Доступные комманды:\n" +
-                "/nextlesson {group}\n" +
-                "/tomorrow {group}\n" +
-                "/week {group}\n" +
-                "/day {group} {day_number}");
+                text: "Доступные комманды:\n" +
+                "/help - список команд;\n" +
+                "/nextlesson - узнать следующую пару;\n" +
+                "/tomorrow - посмотреть расписание на завтра;\n" +
+                "/week - посмотреть расписание на всю неделю;\n" +
+                "/day {day_number} - посмотреть расписание на день недели;\n" +
+                "/updategroup {group} - выбрать другую группу.");
         }
 
         public static async Task NextLessonCommandAsync(long chat_id, string group, ITelegramBotClient client)
@@ -202,6 +235,18 @@ namespace Lab3
                 sb.Append("\nПохоже, на этот день нет пар!");
             }
             client.SendTextMessageAsync(chat_id, sb.ToString());
+        }
+
+        public static async Task SetGroupCommandAsync(long chat_id, string group, ITelegramBotClient client)
+        {
+            Database.InsertGroup(chat_id, group);
+            client.SendTextMessageAsync(chat_id, "Группа успешно сохранена!");
+        }
+
+        public static async Task UpdateGroupCommandAsync(long chat_id, string group, ITelegramBotClient client)
+        {
+            Database.UpdateGroup(chat_id, group);
+            client.SendTextMessageAsync(chat_id, "Группа успешно сохранена!");
         }
     }
 }
